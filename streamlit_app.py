@@ -13,7 +13,11 @@ st.markdown("Upload an audio file and a model to convert voices using RVC (Retri
 
 # Initialize session state
 if 'rvc' not in st.session_state:
-    st.session_state.rvc = RVCInference(device="cpu")  # Default to CPU for cloud deployment
+    try:
+        st.session_state.rvc = RVCInference(device="cpu")  # Default to CPU for cloud deployment
+    except Exception as e:
+        st.error(f"Error initializing RVC: {str(e)}")
+        st.info("If this error persists, please contact support.")
     st.session_state.current_model = None
 
 # File upload section
@@ -31,7 +35,9 @@ with st.expander("Advanced Settings"):
 
 if uploaded_model and uploaded_model != st.session_state.current_model:
     # Save the uploaded model temporarily
-    model_path = os.path.join("/tmp", "temp_model.pth")
+    model_dir = os.path.join(os.getcwd(), ".streamlit", "models")
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, "temp_model.pth")
     with open(model_path, "wb") as f:
         f.write(uploaded_model.getvalue())
 
@@ -47,9 +53,11 @@ if st.button("Convert") and uploaded_audio and uploaded_model:
         # Read the audio file
         audio_bytes = uploaded_audio.getvalue()
 
-        # Save temporary input file
-        input_path = os.path.join("/tmp", "input_audio.wav")
-        output_path = os.path.join("/tmp", "output_audio.wav")
+        # Save temporary input/output files
+        temp_dir = os.path.join(os.getcwd(), ".streamlit", "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        input_path = os.path.join(temp_dir, "input_audio.wav")
+        output_path = os.path.join(temp_dir, "output_audio.wav")
 
         with open(input_path, "wb") as f:
             f.write(audio_bytes)
@@ -83,5 +91,14 @@ if st.button("Convert") and uploaded_audio and uploaded_model:
 
     except Exception as e:
         st.error(f"Error during conversion: {str(e)}")
+    finally:
+        # Cleanup temporary files
+        try:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+            if os.path.exists(output_path):
+                os.remove(output_path)
+        except Exception as cleanup_error:
+            st.warning(f"Warning: Could not cleanup temporary files: {str(cleanup_error)}")
 
 # Add requirements.txt for Streamlit deployment
